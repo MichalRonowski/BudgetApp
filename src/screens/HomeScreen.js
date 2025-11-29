@@ -8,6 +8,8 @@ import {
   Modal,
 } from 'react-native';
 import { useHomeScreen } from '../hooks/useHomeScreen';
+import { useBudgetTrend } from '../hooks/useBudgetTrend';
+import { BudgetTrendChart } from '../components/BudgetTrendChart';
 import { styles } from '../styles/HomeScreen.styles';
 
 export default function HomeScreen() {
@@ -35,6 +37,8 @@ export default function HomeScreen() {
     deleteItem,
     openModal,
   } = useHomeScreen();
+
+  const { historyData, trend, forecasts } = useBudgetTrend(monthPeriod);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -95,6 +99,14 @@ export default function HomeScreen() {
           <Text style={styles.dailyText}>{dailyBudget.toFixed(2)} zł/dzień</Text>
         </View>
       </View>
+
+      {/* Wykres trendu i prognozy */}
+      <BudgetTrendChart 
+        historyData={historyData}
+        monthPeriod={monthPeriod}
+        trend={trend}
+        forecasts={forecasts}
+      />
 
       {/* Przyciski dodawania */}
       <View style={styles.buttonRow}>

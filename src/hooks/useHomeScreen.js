@@ -51,47 +51,6 @@ export const useHomeScreen = () => {
     return () => unsubscribe();
   }, []);
 
-  // Zapisz saldo do Firebase
-  const updateCurrentBalance = async (value) => {
-    setCurrentBalance(value);
-    try {
-      const now = new Date();
-      const dateKey = now.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-      
-      // Zapisz aktualny stan konta
-      await setDoc(doc(db, 'settings', 'budget'), {
-        currentBalance: value,
-        monthPeriod,
-        updatedAt: now.toISOString()
-      }, { merge: true });
-
-      // Zapisz do historii - zawsze nadpisuj najnowszym stanem z danego dnia
-      const historyDoc = doc(db, 'balanceHistory', dateKey);
-      await setDoc(historyDoc, {
-        balance: value,
-        date: dateKey,
-        timestamp: now.toISOString(),
-        updatedAt: now.toISOString()
-      });
-    } catch (error) {
-      console.error('Błąd zapisu salda:', error);
-    }
-  };
-
-  // Zapisz okres do Firebase
-  const updateMonthPeriod = async (value) => {
-    setMonthPeriod(value);
-    try {
-      await setDoc(doc(db, 'settings', 'budget'), {
-        currentBalance,
-        monthPeriod: value,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (error) {
-      console.error('Błąd zapisu okresu:', error);
-    }
-  };
-
   // Obliczenia
   const totalIncome = income.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
   const totalExpenses = expenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
@@ -107,6 +66,77 @@ export const useHomeScreen = () => {
   const monthName = monthPeriod === 'current' 
     ? ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia'][today.getMonth()]
     : ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia'][(today.getMonth() + 1) % 12];
+
+  // Zapisz do historii (wywoływane przy zmianie salda lub obliczeń)
+  const saveToHistory = async () => {
+    try {
+      const now = new Date();
+      const dateKey = now.toISOString().split('T')[0];
+      const historyDoc = doc(db, 'balanceHistory', dateKey);
+      
+      // Oblicz budżet dzienny dla bieżącego miesiąca
+      const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const daysRemainingCurrent = Math.max(1, Math.ceil((currentMonthEnd - now) / (1000 * 60 * 60 * 24)) + 1);
+      const dailyBudgetCurrent = remainingMoney / daysRemainingCurrent;
+      
+      // Oblicz budżet dzienny dla następnego miesiąca
+      const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+      const daysRemainingNext = Math.max(1, Math.ceil((nextMonthEnd - now) / (1000 * 60 * 60 * 24)) + 1);
+      const dailyBudgetNext = remainingMoney / daysRemainingNext;
+      
+      await setDoc(historyDoc, {
+        balance: currentBalance,
+        dailyBudgetCurrentMonth: dailyBudgetCurrent,
+        dailyBudgetNextMonth: dailyBudgetNext,
+        daysRemainingCurrentMonth: daysRemainingCurrent,
+        daysRemainingNextMonth: daysRemainingNext,
+        remainingMoney: remainingMoney,
+        date: dateKey,
+        timestamp: now.toISOString(),
+        updatedAt: now.toISOString()
+      });
+    } catch (error) {
+      console.error('Błąd zapisu historii:', error);
+    }
+  };
+
+  // Zapisz saldo do Firebase
+  const updateCurrentBalance = async (value) => {
+    setCurrentBalance(value);
+    try {
+      const now = new Date();
+      
+      // Zapisz aktualny stan konta
+      await setDoc(doc(db, 'settings', 'budget'), {
+        currentBalance: value,
+        monthPeriod,
+        updatedAt: now.toISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Błąd zapisu salda:', error);
+    }
+  };
+
+  // Efekt do zapisywania historii przy zmianie kluczowych wartości
+  useEffect(() => {
+    if (currentBalance !== 0 || totalIncome !== 0 || totalExpenses !== 0) {
+      saveToHistory();
+    }
+  }, [currentBalance, totalIncome, totalExpenses, dailyBudget]);
+
+  // Zapisz okres do Firebase
+  const updateMonthPeriod = async (value) => {
+    setMonthPeriod(value);
+    try {
+      await setDoc(doc(db, 'settings', 'budget'), {
+        currentBalance,
+        monthPeriod: value,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Błąd zapisu okresu:', error);
+    }
+  };
 
   // Dodaj pozycję
   const addItem = async () => {
