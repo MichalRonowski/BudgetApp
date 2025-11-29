@@ -3,7 +3,7 @@ import { View, Text, Dimensions, ScrollView } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { styles } from '../styles/BudgetTrend.styles';
 
-export const BudgetTrendChart = ({ historyData, monthPeriod, trend, forecasts }) => {
+export const BudgetTrendChart = ({ historyData, monthPeriod, trend, forecasts, targetBuffer, setTargetBuffer }) => {
   const screenWidth = Dimensions.get('window').width;
   const containerWidth = Math.min(screenWidth - 40, 760); // Max 800px - 40px padding
 
@@ -161,6 +161,34 @@ export const BudgetTrendChart = ({ historyData, monthPeriod, trend, forecasts })
             </Text>
             <Text style={styles.forecastValue}>
               {forecasts.daysRemaining} dni
+            </Text>
+          </View>
+
+          {/* D) Ile dni starczy pieniędzy */}
+          {forecasts.daysMoneyWillLast > 0 && forecasts.moneyRunsOutDate && (
+            <View style={styles.forecastItem}>
+              <Text style={styles.forecastLabel}>
+                💰 Przy obecnym tempie wydawania pieniądze starczą na:
+              </Text>
+              <Text style={[
+                styles.forecastValue,
+                forecasts.daysMoneyWillLast < forecasts.daysRemaining ? styles.negativeValue : styles.positiveValue
+              ]}>
+                {forecasts.daysMoneyWillLast} dni (do {forecasts.moneyRunsOutDate})
+              </Text>
+            </View>
+          )}
+
+          {/* E) Optymalna dzienka z buforem */}
+          <View style={styles.forecastItem}>
+            <Text style={styles.forecastLabel}>
+              🎯 Żeby zachować rezerwę {targetBuffer?.toFixed(0)} zł:
+            </Text>
+            <Text style={[
+              styles.forecastValue,
+              forecasts.targetDailyWithBuffer < 0 ? styles.negativeValue : styles.positiveValue
+            ]}>
+              wydawaj max {forecasts.targetDailyWithBuffer?.toFixed(2)} zł/dzień
             </Text>
           </View>
         </View>

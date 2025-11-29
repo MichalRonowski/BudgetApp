@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-export const useBudgetTrend = (monthPeriod) => {
+export const useBudgetTrend = (monthPeriod, totalIncome = 0, totalExpenses = 0, currentBalance = 0, targetBuffer = 0) => {
   const [historyData, setHistoryData] = useState([]);
   const [trend, setTrend] = useState({ direction: 'stable', percentage: 0 });
   const [forecasts, setForecasts] = useState({});
@@ -33,7 +33,7 @@ export const useBudgetTrend = (monthPeriod) => {
     });
 
     return () => unsubscribe();
-  }, [monthPeriod]);
+  }, [monthPeriod, totalIncome, totalExpenses, currentBalance, targetBuffer]);
 
   const calculateTrend = (data) => {
     if (data.length < 2) {
@@ -63,23 +63,39 @@ export const useBudgetTrend = (monthPeriod) => {
 
     const latestData = data[data.length - 1];
     const field = monthPeriod === 'current' ? 'dailyBudgetCurrentMonth' : 'dailyBudgetNextMonth';
-    const daysField = monthPeriod === 'current' ? 'daysRemainingCurrentMonth' : 'daysRemainingNextMonth';
+
+    // Oblicz dni pozostałe na podstawie aktualnej daty
+    const now = new Date();
+    const monthEnd = monthPeriod === 'current' 
+      ? new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      : new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    const daysRemaining = Math.max(1, Math.ceil((monthEnd - now) / (1000 * 60 * 60 * 24)) + 1);
 
     // A) Prognoza na koniec miesiąca
     const last7Days = data.slice(-7);
     if (last7Days.length > 0) {
-      const avgSpending = last7Days.reduce((sum, day) => {
-        const prevDay = data[data.indexOf(day) - 1];
-        if (prevDay) {
-          const spending = prevDay.balance - day.balance;
-          return sum + (spending > 0 ? spending : 0);
+      // Oblicz średnie wydatki tylko jeśli mamy co najmniej 2 dni
+      let avgSpending = 0;
+      if (last7Days.length >= 2) {
+        let totalSpending = 0;
+        let validDays = 0;
+        
+        for (let i = 1; i < last7Days.length; i++) {
+          const spending = last7Days[i - 1].balance - last7Days[i].balance;
+          if (spending > 0) {
+            totalSpending += spending;
+            validDays++;
+          }
         }
-        return sum;
-      }, 0) / Math.max(1, last7Days.length - 1);
+        
+        avgSpending = validDays > 0 ? totalSpending / validDays : 0;
+      }
 
-      const daysRemaining = latestData[daysField] || 1;
-      const projectedEnd = latestData.balance - (avgSpending * daysRemaining);
-      const targetDaily = daysRemaining > 0 ? latestData.balance / daysRemaining : 0;
+      // Prognoza uwzględniająca zaplanowane przychody i wydatki
+      const projectedEndWithPlans = currentBalance + totalIncome - totalExpenses;
+      const projectedEnd = projectedEndWithPlans - (avgSpending * daysRemaining);
+      
+      const targetDaily = daysRemaining > 0 ? projectedEndWithPlans / daysRemaining : 0;
 
       // B) Alerty trendu
       const last3Days = data.slice(-3);
@@ -104,6 +120,19 @@ export const useBudgetTrend = (monthPeriod) => {
       const currentValue = latestData[field] || 0;
       const vsStartPercent = startValue !== 0 ? (((currentValue - startValue) / startValue) * 100).toFixed(1) : 0;
 
+      // D) Ile dni starczy pieniędzy przy obecnym tempie
+      let daysMoneyWillLast = 0;
+      let moneyRunsOutDate = null;
+      if (avgSpending > 0) {
+        daysMoneyWillLast = Math.floor(currentBalance / avgSpending);
+        const runsOutDate = new Date();
+        runsOutDate.setDate(runsOutDate.getDate() + daysMoneyWillLast);
+        moneyRunsOutDate = runsOutDate.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' });
+      }
+
+      // E) Optymalna dzienka do zachowania rezerwy
+      const targetDailyWithBuffer = daysRemaining > 0 ? (projectedEndWithPlans - targetBuffer) / daysRemaining : 0;
+
       setForecasts({
         projectedEndOfMonth: projectedEnd,
         avgDailySpending: avgSpending,
@@ -111,7 +140,10 @@ export const useBudgetTrend = (monthPeriod) => {
         consecutiveDays,
         trendDirection,
         vsStartPercent,
-        daysRemaining: latestData[daysField] || 0,
+        daysRemaining: daysRemaining,
+        daysMoneyWillLast,
+        moneyRunsOutDate,
+        targetDailyWithBuffer,
       });
     }
   };
