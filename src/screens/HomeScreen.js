@@ -15,6 +15,8 @@ import { db } from '../config/firebase';
 export default function HomeScreen() {
   const [income, setIncome] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [currentBalance, setCurrentBalance] = useState(0);
+  const [monthPeriod, setMonthPeriod] = useState('current'); // 'current' or 'next'
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('income'); // 'income' or 'expense'
   const [itemName, setItemName] = useState('');
@@ -49,13 +51,18 @@ export default function HomeScreen() {
   // Obliczenia
   const totalIncome = income.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
   const totalExpenses = expenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
-  const remainingMoney = totalIncome - totalExpenses;
+  const remainingMoney = currentBalance + totalIncome - totalExpenses;
   
-  // Dni do końca miesiąca
+  // Dni do końca miesiąca (włącznie z dzisiejszym dniem)
   const today = new Date();
-  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const daysRemaining = Math.ceil((lastDayOfMonth - today) / (1000 * 60 * 60 * 24));
-  const dailyBudget = daysRemaining > 0 ? remainingMoney / daysRemaining : 0;
+  const monthOffset = monthPeriod === 'current' ? 1 : 2;
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 0);
+  const daysRemaining = Math.max(1, Math.ceil((lastDayOfMonth - today) / (1000 * 60 * 60 * 24)) + 1);
+  const dailyBudget = remainingMoney / daysRemaining;
+  
+  const monthName = monthPeriod === 'current' 
+    ? ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia'][today.getMonth()]
+    : ['Stycznia', 'Lutego', 'Marca', 'Kwietnia', 'Maja', 'Czerwca', 'Lipca', 'Sierpnia', 'Września', 'Października', 'Listopada', 'Grudnia'][(today.getMonth() + 1) % 12];
 
   // Dodaj pozycję
   const addItem = async () => {
@@ -96,11 +103,44 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Budżet Domowy 💰</Text>
-      
-      {/* Podsumowanie */}
-      <View style={styles.summaryCard}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <View style={styles.innerContainer}>
+        <Text style={styles.title}>Budżet Domowy 💰</Text>
+        
+        {/* Podsumowanie */}
+        <View style={styles.summaryCard}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Aktualny stan konta:</Text>
+          <TextInput
+            style={styles.balanceInput}
+            value={currentBalance.toString()}
+            onChangeText={(text) => setCurrentBalance(parseFloat(text) || 0)}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+          />
+        </View>
+        
+        {/* Wybór okresu */}
+        <View style={styles.periodSelector}>
+          <TouchableOpacity 
+            style={[styles.periodButton, monthPeriod === 'current' && styles.periodButtonActive]}
+            onPress={() => setMonthPeriod('current')}
+          >
+            <Text style={[styles.periodButtonText, monthPeriod === 'current' && styles.periodButtonTextActive]}>
+              Bieżący miesiąc
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.periodButton, monthPeriod === 'next' && styles.periodButtonActive]}
+            onPress={() => setMonthPeriod('next')}
+          >
+            <Text style={[styles.periodButtonText, monthPeriod === 'next' && styles.periodButtonTextActive]}>
+              Następny miesiąc
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.divider} />
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Przychody:</Text>
           <Text style={styles.incomeText}>{totalIncome.toFixed(2)} zł</Text>
@@ -117,7 +157,7 @@ export default function HomeScreen() {
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Dzienny budżet ({daysRemaining} dni):</Text>
+          <Text style={styles.summaryLabel}>Do końca {monthName} ({daysRemaining} dni):</Text>
           <Text style={styles.dailyText}>{dailyBudget.toFixed(2)} zł/dzień</Text>
         </View>
       </View>
@@ -222,6 +262,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+    </View>
     </ScrollView>
   );
 }
@@ -230,7 +271,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 20,
+  },
+  contentContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  innerContainer: {
+    width: '100%',
+    maxWidth: 800,
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 28,
@@ -292,6 +341,47 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e0e0e0',
     marginVertical: 10,
+  },
+  balanceInput: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2196F3',
+    borderWidth: 1,
+    borderColor: '#2196F3',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 120,
+    textAlign: 'right',
+  },
+  periodSelector: {
+    flexDirection: 'row',
+    marginTop: 10,
+    marginBottom: 5,
+    gap: 10,
+  },
+  periodButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    backgroundColor: 'white',
+  },
+  periodButtonActive: {
+    borderColor: '#2196F3',
+    backgroundColor: '#E3F2FD',
+  },
+  periodButtonText: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  periodButtonTextActive: {
+    color: '#2196F3',
+    fontWeight: 'bold',
   },
   buttonRow: {
     flexDirection: 'row',

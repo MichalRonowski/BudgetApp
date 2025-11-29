@@ -1,14 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
-// TODO: Zastąp tymi danymi z Firebase Console (Project Settings > Your apps > Web app)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDpE3wvQCDskikxbr7Fqb9Gt8fpOAI0Jdo",
+  authDomain: "budgetapp-2f553.firebaseapp.com",
+  projectId: "budgetapp-2f553",
+  storageBucket: "budgetapp-2f553.firebasestorage.app",
+  messagingSenderId: "902072927164",
+  appId: "1:902072927164:web:fa4adeff4286cd6a84e1b9",
+  measurementId: "G-7JD85ZB6CN"
 };
 
 // Initialize Firebase
