@@ -74,17 +74,38 @@ export const useBudgetTrend = (monthPeriod, totalIncome = 0, totalExpenses = 0, 
     // A) Prognoza na koniec miesiąca
     const last7Days = data.slice(-7);
     if (last7Days.length > 0) {
-      // Oblicz średnie wydatki tylko jeśli mamy co najmniej 2 dni
+      // Oblicz średnie wydatki na podstawie spadku remainingMoney (nie balance)
+      // remainingMoney pokazuje faktyczne "pozostało do wydania" uwzględniając przychody/wydatki
       let avgSpending = 0;
       if (last7Days.length >= 2) {
         let totalSpending = 0;
         let validDays = 0;
         
         for (let i = 1; i < last7Days.length; i++) {
-          const spending = last7Days[i - 1].balance - last7Days[i].balance;
-          if (spending > 0) {
-            totalSpending += spending;
-            validDays++;
+          // Użyj remainingMoney jeśli istnieje
+          // Jeśli nie ma, oblicz z dailyBudget * daysRemaining
+          const prevData = last7Days[i - 1];
+          const currentData = last7Days[i];
+          
+          const field = monthPeriod === 'current' ? 'dailyBudgetCurrentMonth' : 'dailyBudgetNextMonth';
+          const daysField = monthPeriod === 'current' ? 'daysRemainingCurrentMonth' : 'daysRemainingNextMonth';
+          
+          let prevRemaining = prevData.remainingMoney;
+          if (!prevRemaining && prevData[field] && prevData[daysField]) {
+            prevRemaining = prevData[field] * prevData[daysField];
+          }
+          
+          let currentRemaining = currentData.remainingMoney;
+          if (!currentRemaining && currentData[field] && currentData[daysField]) {
+            currentRemaining = currentData[field] * currentData[daysField];
+          }
+          
+          if (prevRemaining && currentRemaining) {
+            const spending = prevRemaining - currentRemaining;
+            if (spending > 0) {
+              totalSpending += spending;
+              validDays++;
+            }
           }
         }
         
@@ -92,10 +113,11 @@ export const useBudgetTrend = (monthPeriod, totalIncome = 0, totalExpenses = 0, 
       }
 
       // Prognoza uwzględniająca zaplanowane przychody i wydatki
-      const projectedEndWithPlans = currentBalance + totalIncome - totalExpenses;
-      const projectedEnd = projectedEndWithPlans - (avgSpending * daysRemaining);
+      // Prognoza to po prostu: aktualne saldo + przychody - wydatki
+      // (nie ekstrapolujemy historycznych wydatków, bo to by była duplikacja)
+      const projectedEnd = currentBalance + totalIncome - totalExpenses;
       
-      const targetDaily = daysRemaining > 0 ? projectedEndWithPlans / daysRemaining : 0;
+      const targetDaily = daysRemaining > 0 ? projectedEnd / daysRemaining : 0;
 
       // B) Alerty trendu
       const last3Days = data.slice(-3);
@@ -131,7 +153,7 @@ export const useBudgetTrend = (monthPeriod, totalIncome = 0, totalExpenses = 0, 
       }
 
       // E) Optymalna dzienka do zachowania rezerwy
-      const targetDailyWithBuffer = daysRemaining > 0 ? (projectedEndWithPlans - targetBuffer) / daysRemaining : 0;
+      const targetDailyWithBuffer = daysRemaining > 0 ? (projectedEnd - targetBuffer) / daysRemaining : 0;
 
       setForecasts({
         projectedEndOfMonth: projectedEnd,
